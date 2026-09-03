@@ -1,0 +1,37 @@
+---
+name: Build the site
+
+# pull_request, not pull_request_target: a run triggered by a fork gets a
+# read-only token and no access to repository secrets. The site needs neither,
+# because every build-time setting in docusaurus.config.js has a default.
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # package-lock.json is in .gitignore, so there is no lock file to cache
+      # against and "npm ci" has nothing to read. deploy.sh installs the same
+      # way, with "npm i".
+      - run: npm install
+
+      # onBrokenLinks and onBrokenAnchors are set to throw, so this also
+      # fails on a dead internal link, not only on invalid syntax.
+      - run: npm run build
