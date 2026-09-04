@@ -322,3 +322,81 @@ This issue is often caused by keyboard being on **Scroll Lock** mode.
 ### Solution
 
 Disable **Scroll Lock** on your keyboard (physical or virtual). Input should resume immediately.
+
+---
+
+## yum update fails with "HTTPS Error 301 - Moved Permanently" {#yum-update-fails-with-https-error-301-moved-permanently}
+
+### Issue
+
+Running `yum update` on a host fails, most often on a fresh install or shortly after an upgrade:
+
+```
+http://mirrors.xcp-ng.org/8/8.3/base/x86_64/repodata/repomd.xml: [Errno 14] HTTPS Error 301 - Moved Permanently
+Trying other mirror.
+```
+
+Switching the repository URL to `https://` by hand usually replaces it with:
+
+```
+[Errno 14] curl#60 - "SSL certificate problem: certificate is not yet valid"
+```
+
+### Cause
+
+The 301 itself is normal and is not the problem. `mirrors.xcp-ng.org` is a mirror *redirector*: it
+answers with a redirect on purpose, sending you to a mirror close to you, and the request then ends
+in a `200`. A working host follows that redirect without comment.
+
+What fails is the TLS certificate check on the mirror you are redirected to, and `yum` reports the
+last status that completed rather than the underlying error. Three causes account for nearly every
+report:
+
+1. **The host clock is wrong.** This is by far the most common on a fresh install, where the
+   machine has not yet obtained the time. A certificate that is perfectly valid looks *not yet
+   valid* to a host that believes it is several months or years in the past.
+2. **A firewall or proxy is inspecting TLS traffic** and does not follow the redirect away from
+   `mirrors.xcp-ng.org` cleanly.
+3. **An individual mirror is serving an expired certificate.** Only hosts redirected to that
+   particular mirror are affected, which is why the problem can look geographic.
+
+### Solution
+
+Check them in that order, cheapest first.
+
+**1. Check the clock.**
+
+<Terminal shell title="root@xcp-ng-host — Check the time and its sources">{`
+date
+chronyc sources
+`}</Terminal>
+
+If `date` is wrong, or if `chronyc sources` reports `Number of sources = 0`, the host has no
+working time synchronisation:
+
+```
+210 Number of sources = 0
+MS Name/IP address         Stratum Poll Reach LastRx Last sample
+===============================================================================
+```
+
+Configure NTP from `xsconsole` and let the time settle, then retry `yum update`. Setting the NTP
+servers explicitly is more reliable than relying on DHCP to supply them.
+
+:::tip
+A host whose clock is in the past will fail *any* TLS connection, not just to the mirrors, so this
+is worth ruling out before investigating anything else.
+:::
+
+**2. Check for TLS inspection between the host and the internet.**
+
+If the clock is correct, look at whether a firewall or proxy is intercepting HTTPS. Traffic
+inspection that rewrites or blocks the redirect away from `mirrors.xcp-ng.org` produces the same
+symptom. Test by allowing the host out without inspection, or compare against a host on a
+different network segment.
+
+**3. Rule out a single bad mirror.**
+
+`updates.xcp-ng.org` is a primary mirror rather than the redirector, so pointing at it directly
+bypasses mirror selection. If that succeeds while `mirrors.xcp-ng.org` fails, the mirror you were
+being sent to is the problem and is worth reporting on the forum so it can be disabled.
