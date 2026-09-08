@@ -7,7 +7,7 @@ Corrupted VDIs or interrupted operations can inadvertently corrupt the `snapshot
 A fix for this long-standing issue is being developed for several storage backends, and a [helper script](https://github.com/xcp-ng/xcp/blob/master/scripts/snapshot-fixer.py) is provided to fix xapi databases with incongruent snapshot metadata.
 
 :::note
-The script requires XCP-ng 8.3 or newer and refuses to run on earlier releases, where it does not produce correct results. There is no equivalent for XCP-ng 8.2, which is EOL: upgrade to a supported release to use it.
+The script requires XCP-ng 8.3 or later. It refuses to run on earlier versions because they do not produce correct results. There is no equivalent for XCP-ng 8.2, which has reached end of life. Upgrade to a supported release to use this script.
 :::
 
 :::danger
